@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Timesheet OCR
 
-## Getting Started
+Upload a scanned timesheet image, review the extracted handwriting in an editable table, and download the result as a CSV.
 
-First, run the development server:
+## Setup
+
+Two processes must run simultaneously.
+
+### Python OCR service (first-time setup)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+python3.12 -m venv python/venv
+source python/venv/bin/activate
+pip install -r python/requirements.txt   # downloads ~350 MB of TrOCR weights on first run
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Running
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Terminal 1 — OCR service
+source python/venv/bin/activate
+PYTHONUNBUFFERED=1 python python/server.py   # http://localhost:8000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Terminal 2 — Next.js app
+npm install
+npm run dev   # http://localhost:3333
+```
 
-## Learn More
+## Tech stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Next.js 16** (App Router, TypeScript, Tailwind CSS v4)
+- **Python 3.12** — FastAPI + OpenCV grid detection + TrOCR (`microsoft/trocr-base-handwritten`)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `python/README.md` for a detailed explanation of the OCR pipeline.
