@@ -26,6 +26,20 @@ The server listens on `http://localhost:8000`. The Next.js app proxies `/api/ocr
 | `torch` | Tensor operations for TrOCR |
 | `transformers<5` | TrOCR model loader — v5 requires PyTorch ≥ 2.4, unavailable on Intel Mac |
 | `safetensors` | Secure model weight loading (avoids `torch.load` pickle vulnerability) |
+| `pytest` + `httpx` | Test suite — pytest runner; httpx is required by FastAPI TestClient |
+
+## Testing
+
+```bash
+# From the python/ directory with venv active
+python -m pytest tests/ -v
+
+# Run a single test file
+python -m pytest tests/test_pure_functions.py -v
+python -m pytest tests/test_api.py -v
+```
+
+The suite patches `transformers.TrOCRProcessor.from_pretrained` and `transformers.VisionEncoderDecoderModel.from_pretrained` at import time so no model weights are loaded — tests run in seconds.
 
 ---
 

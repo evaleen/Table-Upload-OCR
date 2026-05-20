@@ -52,15 +52,17 @@ app/
       route.ts          # POST handler: proxies image to Python OCR service, returns OcrResult
 components/
   FileUploader.tsx      # Upload screen: drag-and-drop or click, shows loading while OCR runs
-  TableReview.tsx       # Review screen: editable table + CSV download + Restart button
+  TableReview.tsx       # Review screen: editable table + image panel + lightbox + CSV download
 lib/
   csv.ts                # Converts OcrResult to CSV string
-  types.ts              # Shared TypeScript types (TableRow, OcrResult, AppScreen, COLUMN_HEADERS)
+  types.ts              # Shared TypeScript types (TableRow, OcrResult, AppScreen, COLUMN_HEADERS, FOOTER_READONLY)
 python/
   server.py             # FastAPI app: OpenCV grid detection → TrOCR → OcrResult JSON
   requirements.txt      # Python dependencies
   README.md             # Detailed explanation of the OCR pipeline and each function
+  tests/                # pytest suite: test_pure_functions.py, test_api.py
   venv/                 # Python 3.12 virtual environment (not committed)
+test/                   # Vitest suite: FileUploader, TableReview, ocr-route, csv
 ```
 
 ## Key Types (`lib/types.ts`)
@@ -115,6 +117,19 @@ npm run lint      # ESLint
 ```
 
 To use a custom Python service URL: `OCR_SERVICE_URL=http://host:8000/ocr npm run dev`
+
+## Testing
+
+```bash
+# Frontend (Vitest + jsdom + React Testing Library)
+npm run test:run   # single run, exits with pass/fail
+npm run test       # watch mode
+
+# Python (pytest — run from the repo root or python/ directory)
+cd python
+source venv/bin/activate
+python -m pytest tests/ -v
+```
 
 ## Python environment notes
 

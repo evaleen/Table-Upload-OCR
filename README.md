@@ -32,3 +32,16 @@ npm run dev   # http://localhost:3333
 - **Python 3.12** — FastAPI + OpenCV grid detection + TrOCR (`microsoft/trocr-base-handwritten`)
 
 See `python/README.md` for a detailed explanation of the OCR pipeline.
+
+## Testing
+
+```bash
+# Frontend (Vitest + jsdom + React Testing Library)
+npm run test:run   # single run
+npm run test       # watch mode
+
+# Python (pytest)
+cd python
+source venv/bin/activate
+python -m pytest tests/ -v
+```
