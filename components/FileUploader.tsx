@@ -26,12 +26,16 @@ function validateFile(file: File): string | null {
   return null;
 }
 
-export function FileUploader({ onSuccess }: { onSuccess: (result: OcrResult) => void }) {
+export function FileUploader({ onSuccess }: { onSuccess: (result: OcrResult, file: File) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const fileRef = useRef<File | null>(null);
 
-  const mutation = useMutation({ mutationFn: uploadImage, onSuccess });
+  const mutation = useMutation({
+    mutationFn: uploadImage,
+    onSuccess: (result) => onSuccess(result, fileRef.current!),
+  });
 
   const handleFile = (file: File) => {
     const error = validateFile(file);
@@ -41,6 +45,7 @@ export function FileUploader({ onSuccess }: { onSuccess: (result: OcrResult) => 
       return;
     }
     setValidationError(null);
+    fileRef.current = file;
     setPreview(URL.createObjectURL(file));
     mutation.mutate(file);
   };

@@ -1,15 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import Image from 'next/image';
 import { toCSV } from '@/lib/csv';
-import { COLUMN_HEADERS } from '@/lib/types';
+import { COLUMN_HEADERS, FOOTER_READONLY } from '@/lib/types';
 import type { OcrResult, TableRow } from '@/lib/types';
+
+const columnHelper = createColumnHelper<TableRow>();
+
+const FIELDS: (keyof TableRow)[] = [
+  'clientName',
+  'clientId',
+  'weekEnding1',
+  'weekEnding2',
+  'nightHours',
+  'sundayHours',
+  'bankHolidayHours',
+];
 
 export function TableReview({
   result,
+  imageUrl,
   onRestart,
 }: {
   result: OcrResult;
+  imageUrl: string;
   onRestart: () => void;
 }) {
   const [rows, setRows] = useState<TableRow[]>(result.rows);
@@ -18,6 +39,43 @@ export function TableReview({
     setRows((prev) =>
       prev.map((r, i) => (i === rowIndex ? { ...r, [field]: value } : r))
     );
+
+  const columns = useMemo(
+    () =>
+      FIELDS.map((field, colIndex) =>
+        columnHelper.accessor(field, {
+          header: COLUMN_HEADERS[colIndex],
+          cell: ({ getValue, row }) => {
+            const rowIndex = row.index;
+            const isReadOnly = FOOTER_READONLY[rowIndex]?.includes(field) ?? false;
+            const value = getValue();
+
+            if (isReadOnly) {
+              return (
+                <span className="block w-full px-3 py-2 text-sm text-gray-500 select-none">
+                  {value}
+                </span>
+              );
+            }
+
+            return (
+              <input
+                value={value}
+                onChange={(e) => updateCell(rowIndex, field, e.target.value)}
+                className="w-full px-3 py-2 bg-transparent focus:outline-none focus:bg-blue-50 text-sm"
+              />
+            );
+          },
+        })
+      ),
+    []
+  );
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   const downloadCSV = () => {
     const csv = toCSV({ rows });
@@ -30,26 +88,17 @@ export function TableReview({
     URL.revokeObjectURL(url);
   };
 
-  const cellClass =
-    'w-full px-3 py-2 bg-transparent border-r border-gray-100 last:border-r-0 focus:outline-none focus:bg-blue-50 text-sm';
-
-  const fields: (keyof TableRow)[] = [
-    'clientName',
-    'clientId',
-    'weekEnding1',
-    'weekEnding2',
-    'nightHours',
-    'sundayHours',
-    'bankHolidayHours',
-  ];
+  const detectedCount = rows
+    .slice(0, 21)
+    .filter((r) => Object.values(r).some((v) => v !== '')).length;
 
   return (
-    <main className="min-h-screen p-6 bg-gray-50">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+    <main className="min-h-screen bg-gray-50">
+      <div className="flex flex-col h-screen">
+        <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 shrink-0">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Review Timesheet</h1>
-            <p className="text-gray-500 text-sm mt-1">Click any cell to correct OCR mistakes</p>
+            <p className="text-gray-500 text-sm mt-0.5">Click any cell to correct OCR mistakes</p>
           </div>
           <div className="flex gap-3">
             <button
@@ -65,40 +114,54 @@ export function TableReview({
               Download CSV
             </button>
           </div>
-        </div>
+        </header>
 
-        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {COLUMN_HEADERS.map((h, i) => (
-                  <th key={i} className="px-3 py-2 text-left text-sm font-semibold text-gray-700 border-r border-gray-200 last:border-r-0 whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, ri) => (
-                <tr key={ri} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
-                  {fields.map((field) => (
-                    <td key={field} className="p-0">
-                      <input
-                        value={row[field]}
-                        onChange={(e) => updateCell(ri, field, e.target.value)}
-                        className={cellClass}
-                      />
-                    </td>
+        <div className="flex flex-1 overflow-hidden">
+          <aside className="w-80 shrink-0 border-r border-gray-200 bg-white overflow-y-auto p-4">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Uploaded image</p>
+            <Image
+              src={imageUrl}
+              alt="Uploaded timesheet"
+              width={320}
+              height={800}
+              className="w-full rounded border border-gray-200 object-contain"
+              unoptimized
+            />
+          </aside>
+
+          <div className="flex-1 overflow-auto">
+            <div className="min-w-max">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <th
+                          key={header.id}
+                          className="px-3 py-2 text-left text-sm font-semibold text-gray-700 border-r border-gray-200 last:border-r-0 whitespace-nowrap"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {table.getRowModel().rows.map((row) => (
+                    <tr key={row.id} className="hover:bg-gray-50">
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="p-0 border-r border-gray-100 last:border-r-0">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-center text-gray-400 text-sm py-4">{detectedCount} rows detected</p>
+          </div>
         </div>
-
-        <p className="text-center text-gray-400 text-sm mt-4">
-          {rows.slice(0, 21).filter((r) => Object.values(r).some((v) => v !== '')).length} rows detected
-        </p>
       </div>
     </main>
   );

@@ -23,8 +23,7 @@ model.eval()  # inference mode — disables dropout layers used only during trai
 print('[startup] ready')
 
 # Column field names must match the TypeScript TableRow type in lib/types.ts
-FIELDS = ['clientName', 'clientId', 'weekEnding1', 'weekEnding2',
-          'nightHours', 'sundayHours', 'bankHolidayHours']
+FIELDS = ['clientName', 'clientId', 'weekEnding1', 'weekEnding2', 'nightHours', 'sundayHours', 'bankHolidayHours']
 NUM_COLS = 7
 NUM_DATA_ROWS = 29
 # The column header row is tall enough that the grid detector finds several

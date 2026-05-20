@@ -23,3 +23,13 @@ export type OcrResult = {
 };
 
 export type AppScreen = 'upload' | 'review';
+
+export const FOOTER_READONLY: Partial<Record<number, (keyof TableRow)[]>> = {
+  21: ['clientName', 'clientId'],
+  22: ['clientName', 'clientId'],
+  23: ['clientName', 'clientId'],
+  25: ['clientName'],
+  26: ['clientName', 'clientId'],
+  27: ['clientName', 'clientId'],
+  28: ['clientName'],
+};
