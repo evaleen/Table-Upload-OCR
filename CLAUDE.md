@@ -36,7 +36,7 @@ Scans may vary in resolution, brightness, and may have slight rotational skew.
 Two screens, managed by a single state variable in the root page component:
 
 1. **Upload screen** — drag-and-drop or click file input (PNG/JPG, max 20 MB); shows a spinner while OCR runs
-2. **Review screen** — extracted rows in an editable table; arrow keys navigate between cells; Download CSV and Restart buttons
+2. **Review screen** — extracted rows in an editable table; confirm or clear each row before CSV export; arrow keys navigate between cells; image panel with full-size lightbox
 
 Restart resets state back to the upload screen. No routing — both screens live in `app/page.tsx`.
 
@@ -52,17 +52,22 @@ app/
       route.ts          # POST handler: proxies image to Python OCR service, returns OcrResult
 components/
   FileUploader.tsx      # Upload screen: drag-and-drop or click, shows loading while OCR runs
-  TableReview.tsx       # Review screen: editable table + image panel + lightbox + CSV download; arrow-key cell navigation
+  TableReview.tsx       # Review screen: editable table + image panel + row verification + CSV download; arrow-key cell navigation
+  ImageLightbox.tsx     # Full-size image overlay (A4 794×1123); closes on backdrop click, × button, or Escape
+  ClearRowModal.tsx     # Confirmation dialog before clearing a row's data
+hooks/
+  useRowReview.ts       # Row confirm/clear state — rowStatuses, rejectTarget, isRowReviewable, confirmRow, unlockRow, clearRow, allConfirmed
+  useGridKeyNavigation.ts # Arrow-key navigation across the input grid — registerInput ref callback + handleKeyDown
 lib/
   csv.ts                # Converts OcrResult to CSV string
-  types.ts              # Shared TypeScript types (TableRow, OcrResult, AppScreen, COLUMN_HEADERS, FOOTER_READONLY)
+  types.ts              # Shared TypeScript types (TableRow, OcrResult, AppScreen, COLUMN_HEADERS, FOOTER_READONLY, FIELDS, NUM_COLS)
 python/
   server.py             # FastAPI app: OpenCV grid detection → TrOCR → OcrResult JSON
   requirements.txt      # Python dependencies
   README.md             # Detailed explanation of the OCR pipeline and each function
   tests/                # pytest suite: test_pure_functions.py, test_api.py
   venv/                 # Python 3.12 virtual environment (not committed)
-test/                   # Vitest suite: FileUploader, TableReview, ocr-route, csv
+test/                   # Vitest suite: FileUploader, TableReview.{editing,lightbox,verification,keyboard}, ocr-route, csv
 ```
 
 ## Key Types (`lib/types.ts`)
