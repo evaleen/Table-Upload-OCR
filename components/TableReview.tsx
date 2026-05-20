@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -24,6 +24,8 @@ const FIELDS: (keyof TableRow)[] = [
   'bankHolidayHours',
 ];
 
+const NUM_COLS = FIELDS.length;
+
 export function TableReview({
   result,
   imageUrl,
@@ -36,6 +38,33 @@ export function TableReview({
   "use no memo";
   const [rows, setRows] = useState<TableRow[]>(result.rows);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
+
+  const handleKeyDown = useCallback((
+    e: React.KeyboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    colIndex: number,
+  ) => {
+    let dr = 0, dc = 0;
+    if      (e.key === 'ArrowUp')    dr = -1;
+    else if (e.key === 'ArrowDown')  dr =  1;
+    else if (e.key === 'ArrowLeft')  dc = -1;
+    else if (e.key === 'ArrowRight') dc =  1;
+    else return;
+
+    e.preventDefault();
+
+    const numRows = inputRefs.current.length;
+    let nextRow = rowIndex + dr;
+    let nextCol = colIndex + dc;
+
+    while (nextRow >= 0 && nextRow < numRows && nextCol >= 0 && nextCol < NUM_COLS) {
+      const el = inputRefs.current[nextRow]?.[nextCol];
+      if (el) { el.focus(); return; }
+      nextRow += dr;
+      nextCol += dc;
+    }
+  }, []);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -69,8 +98,13 @@ export function TableReview({
 
             return (
               <input
+                ref={(el) => {
+                  if (!inputRefs.current[rowIndex]) inputRefs.current[rowIndex] = Array(NUM_COLS).fill(null);
+                  inputRefs.current[rowIndex][colIndex] = el;
+                }}
                 value={value}
                 onChange={(e) => updateCell(rowIndex, field, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
                 className="w-full px-3 py-2 bg-transparent focus:outline-none focus:bg-blue-50 text-sm"
               />
             );

@@ -36,7 +36,7 @@ Scans may vary in resolution, brightness, and may have slight rotational skew.
 Two screens, managed by a single state variable in the root page component:
 
 1. **Upload screen** — drag-and-drop or click file input (PNG/JPG, max 20 MB); shows a spinner while OCR runs
-2. **Review screen** — extracted rows in an editable table; Download CSV and Restart buttons
+2. **Review screen** — extracted rows in an editable table; arrow keys navigate between cells; Download CSV and Restart buttons
 
 Restart resets state back to the upload screen. No routing — both screens live in `app/page.tsx`.
 
@@ -52,7 +52,7 @@ app/
       route.ts          # POST handler: proxies image to Python OCR service, returns OcrResult
 components/
   FileUploader.tsx      # Upload screen: drag-and-drop or click, shows loading while OCR runs
-  TableReview.tsx       # Review screen: editable table + image panel + lightbox + CSV download
+  TableReview.tsx       # Review screen: editable table + image panel + lightbox + CSV download; arrow-key cell navigation
 lib/
   csv.ts                # Converts OcrResult to CSV string
   types.ts              # Shared TypeScript types (TableRow, OcrResult, AppScreen, COLUMN_HEADERS, FOOTER_READONLY)
