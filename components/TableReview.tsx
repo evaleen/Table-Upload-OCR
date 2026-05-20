@@ -10,6 +10,7 @@ import {
 import Image from 'next/image';
 import { toCSV } from '@/lib/csv';
 import { COLUMN_HEADERS, FOOTER_READONLY } from '@/lib/types';
+import { CheckCircle, XCircle, Pencil } from 'lucide-react';
 import type { OcrResult, TableRow } from '@/lib/types';
 
 const columnHelper = createColumnHelper<TableRow>();
@@ -26,6 +27,8 @@ const FIELDS: (keyof TableRow)[] = [
 
 const NUM_COLS = FIELDS.length;
 
+type RowStatus = 'unreviewed' | 'confirmed';
+
 export function TableReview({
   result,
   imageUrl,
@@ -38,7 +41,17 @@ export function TableReview({
   "use no memo";
   const [rows, setRows] = useState<TableRow[]>(result.rows);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [rowStatuses, setRowStatuses] = useState<RowStatus[]>(() =>
+    Array(result.rows.length).fill('unreviewed')
+  );
+  const [rejectTarget, setRejectTarget] = useState<number | null>(null);
+
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
+  // Synced refs give stale useMemo([]) closures access to current state values.
+  const rowStatusesRef = useRef(rowStatuses);
+  rowStatusesRef.current = rowStatuses;
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
 
   const handleKeyDown = useCallback((
     e: React.KeyboardEvent<HTMLInputElement>,
@@ -66,6 +79,37 @@ export function TableReview({
     }
   }, []);
 
+  // A row is reviewable only if at least one editable (non-readonly) cell is non-empty.
+  // Footer rows whose only content is pre-printed labels are treated as empty.
+  const isRowReviewable = useCallback((rowIndex: number) =>
+    FIELDS.some(
+      (field) =>
+        !(FOOTER_READONLY[rowIndex]?.includes(field)) &&
+        rowsRef.current[rowIndex][field] !== ''
+    ), []);
+
+  const confirmRow = useCallback((i: number) =>
+    setRowStatuses((prev) => prev.map((s, j) => (j === i ? 'confirmed' : s))), []);
+
+  const unlockRow = useCallback((i: number) =>
+    setRowStatuses((prev) => prev.map((s, j) => (j === i ? 'unreviewed' : s))), []);
+
+  // Clears only editable fields; preserves pre-printed readonly labels (e.g. "Break Times").
+  const clearRow = useCallback((i: number) => {
+    setRows((prev) =>
+      prev.map((r, j) => {
+        if (j !== i) return r;
+        const cleared = { ...r };
+        for (const field of FIELDS) {
+          if (!(FOOTER_READONLY[i]?.includes(field))) cleared[field] = '';
+        }
+        return cleared;
+      })
+    );
+    setRowStatuses((prev) => prev.map((s, j) => (j === i ? 'unreviewed' : s)));
+    setRejectTarget(null);
+  }, []);
+
   useEffect(() => {
     if (!lightboxOpen) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxOpen(false); };
@@ -79,16 +123,63 @@ export function TableReview({
     );
 
   const columns = useMemo(
-    () =>
-      FIELDS.map((field, colIndex) =>
+    () => [
+      columnHelper.display({
+        id: 'actions',
+        cell: ({ row }) => {
+          const rowIndex = row.index;
+          const status = rowStatusesRef.current[rowIndex];
+          const reviewable = isRowReviewable(rowIndex);
+
+          if (!reviewable) return <div className="w-16" />;
+
+          if (status === 'confirmed') {
+            return (
+              <div className="flex items-center justify-center w-16 px-1">
+                <button
+                  onClick={() => unlockRow(rowIndex)}
+                  aria-label="Edit row"
+                  title="Edit row"
+                  className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                >
+                  <Pencil className="size-4" />
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex items-center justify-center w-16 gap-0.5 px-1">
+              <button
+                onClick={() => confirmRow(rowIndex)}
+                aria-label="Confirm row"
+                title="Confirm row"
+                className="p-1 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors cursor-pointer"
+              >
+                <CheckCircle className="size-4" />
+              </button>
+              <button
+                onClick={() => setRejectTarget(rowIndex)}
+                aria-label="Clear row"
+                title="Clear row"
+                className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                <XCircle className="size-4" />
+              </button>
+            </div>
+          );
+        },
+      }),
+      ...FIELDS.map((field, colIndex) =>
         columnHelper.accessor(field, {
           header: COLUMN_HEADERS[colIndex],
           cell: ({ getValue, row }) => {
             const rowIndex = row.index;
             const isReadOnly = FOOTER_READONLY[rowIndex]?.includes(field) ?? false;
+            const isConfirmed = rowStatusesRef.current[rowIndex] === 'confirmed';
             const value = getValue();
 
-            if (isReadOnly) {
+            if (isReadOnly || isConfirmed) {
               return (
                 <span className="block w-full px-3 py-2 text-sm text-gray-500 select-none">
                   {value}
@@ -105,12 +196,13 @@ export function TableReview({
                 value={value}
                 onChange={(e) => updateCell(rowIndex, field, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
-                className="w-full px-3 py-2 bg-transparent focus:outline-none focus:bg-blue-50 text-sm"
+                className="w-full px-3 py-2 bg-transparent focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 text-sm"
               />
             );
           },
         })
       ),
+    ],
     []
   );
 
@@ -119,6 +211,8 @@ export function TableReview({
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  const allConfirmed = rows.every((_, i) => !isRowReviewable(i) || rowStatuses[i] === 'confirmed');
 
   const downloadCSV = () => {
     const csv = toCSV({ rows });
@@ -141,7 +235,7 @@ export function TableReview({
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 shrink-0">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Review Timesheet</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Click any cell to correct OCR mistakes</p>
+            <p className="text-gray-500 text-sm mt-0.5">Confirm each row before downloading</p>
           </div>
           <div className="flex gap-3">
             <button
@@ -152,7 +246,8 @@ export function TableReview({
             </button>
             <button
               onClick={downloadCSV}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+              disabled={!allConfirmed}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Download CSV
             </button>
@@ -195,6 +290,31 @@ export function TableReview({
                   className="rounded shadow-2xl"
                   unoptimized
                 />
+              </div>
+            </div>
+          )}
+
+          {rejectTarget !== null && (
+            <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+              <div role="dialog" aria-modal="true" className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full">
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Clear this row?</h2>
+                <p className="text-sm text-gray-500 mb-6">
+                  All data in this row will be deleted. This cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setRejectTarget(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => clearRow(rejectTarget)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+                  >
+                    Clear row
+                  </button>
+                </div>
               </div>
             </div>
           )}
