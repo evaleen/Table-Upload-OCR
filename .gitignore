@@ -42,9 +42,10 @@ next-env.d.ts
 
 # python
 python/venv/
-python/__pycache__/
-python/*.pyc
+**/__pycache__/
+**/*.pyc
 *.egg-info/
+.pytest_cache/
 
 # local tooling
 .claude/

@@ -6,3 +6,7 @@ numpy<2
 torch==2.2.2
 transformers<5
 safetensors
+
+# testing
+pytest
+httpx
