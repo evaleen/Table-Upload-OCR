@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -33,7 +33,16 @@ export function TableReview({
   imageUrl: string;
   onRestart: () => void;
 }) {
+  "use no memo";
   const [rows, setRows] = useState<TableRow[]>(result.rows);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxOpen(false); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lightboxOpen]);
 
   const updateCell = (rowIndex: number, field: keyof TableRow, value: string) =>
     setRows((prev) =>
@@ -124,10 +133,37 @@ export function TableReview({
               alt="Uploaded timesheet"
               width={320}
               height={800}
-              className="w-full rounded border border-gray-200 object-contain"
+              className="w-full rounded border border-gray-200 object-contain cursor-pointer hover:ring-2 hover:ring-blue-400 transition-shadow"
               unoptimized
+              onClick={() => setLightboxOpen(true)}
             />
+            <p className="text-xs text-gray-400 mt-2 text-center">Click to enlarge</p>
           </aside>
+
+          {lightboxOpen && (
+            <div
+              className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center overflow-y-auto p-8"
+              onClick={() => setLightboxOpen(false)}
+            >
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setLightboxOpen(false)}
+                  className="absolute -top-3 -right-3 z-10 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-600 hover:text-gray-900 font-medium cursor-pointer"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+                <Image
+                  src={imageUrl}
+                  alt="Uploaded timesheet full size"
+                  width={794}
+                  height={1123}
+                  className="rounded shadow-2xl"
+                  unoptimized
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 overflow-auto">
             <div className="min-w-max">
