@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -9,25 +9,15 @@ import {
 } from '@tanstack/react-table';
 import Image from 'next/image';
 import { toCSV } from '@/lib/csv';
-import { COLUMN_HEADERS, FOOTER_READONLY } from '@/lib/types';
+import { COLUMN_HEADERS, FOOTER_READONLY, FIELDS, NUM_COLS } from '@/lib/types';
 import { CheckCircle, XCircle, Pencil } from 'lucide-react';
 import type { OcrResult, TableRow } from '@/lib/types';
+import { useGridKeyNavigation } from '@/hooks/useGridKeyNavigation';
+import { useRowReview } from '@/hooks/useRowReview';
+import { ImageLightbox } from './ImageLightbox';
+import { ClearRowModal } from './ClearRowModal';
 
 const columnHelper = createColumnHelper<TableRow>();
-
-const FIELDS: (keyof TableRow)[] = [
-  'clientName',
-  'clientId',
-  'weekEnding1',
-  'weekEnding2',
-  'nightHours',
-  'sundayHours',
-  'bankHolidayHours',
-];
-
-const NUM_COLS = FIELDS.length;
-
-type RowStatus = 'unreviewed' | 'confirmed';
 
 export function TableReview({
   result,
@@ -41,81 +31,18 @@ export function TableReview({
   "use no memo";
   const [rows, setRows] = useState<TableRow[]>(result.rows);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [rowStatuses, setRowStatuses] = useState<RowStatus[]>(() =>
-    Array(result.rows.length).fill('unreviewed')
-  );
-  const [rejectTarget, setRejectTarget] = useState<number | null>(null);
 
-  const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
-  // Synced refs give stale useMemo([]) closures access to current state values.
-  const rowStatusesRef = useRef(rowStatuses);
-  rowStatusesRef.current = rowStatuses;
-  const rowsRef = useRef(rows);
-  rowsRef.current = rows;
-
-  const handleKeyDown = useCallback((
-    e: React.KeyboardEvent<HTMLInputElement>,
-    rowIndex: number,
-    colIndex: number,
-  ) => {
-    let dr = 0, dc = 0;
-    if      (e.key === 'ArrowUp')    dr = -1;
-    else if (e.key === 'ArrowDown')  dr =  1;
-    else if (e.key === 'ArrowLeft')  dc = -1;
-    else if (e.key === 'ArrowRight') dc =  1;
-    else return;
-
-    e.preventDefault();
-
-    const numRows = inputRefs.current.length;
-    let nextRow = rowIndex + dr;
-    let nextCol = colIndex + dc;
-
-    while (nextRow >= 0 && nextRow < numRows && nextCol >= 0 && nextCol < NUM_COLS) {
-      const el = inputRefs.current[nextRow]?.[nextCol];
-      if (el) { el.focus(); return; }
-      nextRow += dr;
-      nextCol += dc;
-    }
-  }, []);
-
-  // A row is reviewable only if at least one editable (non-readonly) cell is non-empty.
-  // Footer rows whose only content is pre-printed labels are treated as empty.
-  const isRowReviewable = useCallback((rowIndex: number) =>
-    FIELDS.some(
-      (field) =>
-        !(FOOTER_READONLY[rowIndex]?.includes(field)) &&
-        rowsRef.current[rowIndex][field] !== ''
-    ), []);
-
-  const confirmRow = useCallback((i: number) =>
-    setRowStatuses((prev) => prev.map((s, j) => (j === i ? 'confirmed' : s))), []);
-
-  const unlockRow = useCallback((i: number) =>
-    setRowStatuses((prev) => prev.map((s, j) => (j === i ? 'unreviewed' : s))), []);
-
-  // Clears only editable fields; preserves pre-printed readonly labels (e.g. "Break Times").
-  const clearRow = useCallback((i: number) => {
-    setRows((prev) =>
-      prev.map((r, j) => {
-        if (j !== i) return r;
-        const cleared = { ...r };
-        for (const field of FIELDS) {
-          if (!(FOOTER_READONLY[i]?.includes(field))) cleared[field] = '';
-        }
-        return cleared;
-      })
-    );
-    setRowStatuses((prev) => prev.map((s, j) => (j === i ? 'unreviewed' : s)));
-    setRejectTarget(null);
-  }, []);
-
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxOpen(false); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [lightboxOpen]);
+  const { registerInput, handleKeyDown } = useGridKeyNavigation(NUM_COLS);
+  const {
+    rowStatusesRef,
+    rejectTarget,
+    setRejectTarget,
+    isRowReviewable,
+    confirmRow,
+    unlockRow,
+    clearRow,
+    allConfirmed,
+  } = useRowReview(rows, setRows);
 
   const updateCell = (rowIndex: number, field: keyof TableRow, value: string) =>
     setRows((prev) =>
@@ -189,10 +116,7 @@ export function TableReview({
 
             return (
               <input
-                ref={(el) => {
-                  if (!inputRefs.current[rowIndex]) inputRefs.current[rowIndex] = Array(NUM_COLS).fill(null);
-                  inputRefs.current[rowIndex][colIndex] = el;
-                }}
+                ref={(el) => registerInput(el, rowIndex, colIndex)}
                 value={value}
                 onChange={(e) => updateCell(rowIndex, field, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, rowIndex, colIndex)}
@@ -211,8 +135,6 @@ export function TableReview({
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
-
-  const allConfirmed = rows.every((_, i) => !isRowReviewable(i) || rowStatuses[i] === 'confirmed');
 
   const downloadCSV = () => {
     const csv = toCSV({ rows });
@@ -269,55 +191,17 @@ export function TableReview({
             <p className="text-xs text-gray-400 mt-2 text-center">Click to enlarge</p>
           </aside>
 
-          {lightboxOpen && (
-            <div
-              className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center overflow-y-auto p-8"
-              onClick={() => setLightboxOpen(false)}
-            >
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => setLightboxOpen(false)}
-                  className="absolute -top-3 -right-3 z-10 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-600 hover:text-gray-900 font-medium cursor-pointer"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-                <Image
-                  src={imageUrl}
-                  alt="Uploaded timesheet full size"
-                  width={794}
-                  height={1123}
-                  className="rounded shadow-2xl"
-                  unoptimized
-                />
-              </div>
-            </div>
-          )}
+          <ImageLightbox
+            src={imageUrl}
+            isOpen={lightboxOpen}
+            onClose={() => setLightboxOpen(false)}
+          />
 
-          {rejectTarget !== null && (
-            <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-              <div role="dialog" aria-modal="true" className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Clear this row?</h2>
-                <p className="text-sm text-gray-500 mb-6">
-                  All data in this row will be deleted. This cannot be undone.
-                </p>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => setRejectTarget(null)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => clearRow(rejectTarget)}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
-                  >
-                    Clear row
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <ClearRowModal
+            isOpen={rejectTarget !== null}
+            onCancel={() => setRejectTarget(null)}
+            onConfirm={() => rejectTarget !== null && clearRow(rejectTarget)}
+          />
 
           <div className="flex-1 overflow-auto">
             <div className="min-w-max">

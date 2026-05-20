@@ -24,6 +24,18 @@ export type OcrResult = {
 
 export type AppScreen = 'upload' | 'review';
 
+export const FIELDS: (keyof TableRow)[] = [
+  'clientName',
+  'clientId',
+  'weekEnding1',
+  'weekEnding2',
+  'nightHours',
+  'sundayHours',
+  'bankHolidayHours',
+];
+
+export const NUM_COLS = FIELDS.length;
+
 export const FOOTER_READONLY: Partial<Record<number, (keyof TableRow)[]>> = {
   21: ['clientName', 'clientId'],
   22: ['clientName', 'clientId'],
